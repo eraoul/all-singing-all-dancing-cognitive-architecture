@@ -71,23 +71,23 @@ prg = cl.Program(ctx, """
       int prevVal = atom_xchg(semaphor, 0);
     }
 
-    int pop_count_uint32(__local uint i)
+    int pop_count_uint32(uint i)
     {
-        i = i - ((i >> 1) & 0x55555555);
-        i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
-        return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+      i = i - ((i >> 1) & 0x55555555);
+      i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+      return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
     }
 
     __kernel void get_active_hard_locations_256bits_in_uint8(__global uint8 *hard_location_addresses,
     __global uint8 *bitstring, __global uint *activeHLs, __global uint *hamming_distances, __global uint *semaphor)
     {
-        uint MaxActiveHLs = 1025;
         uint8 Xor;
-        uint8 local_b = bitstring[0];
+        uint8 local_bitstring = bitstring[0];
         uint hamming = 0;
         uint gid = get_global_id(0);
+        uint8 local_hard_location_address = hard_location_addresses[gid];
       
-        Xor = hard_location_addresses[gid] ^ bitstring[0]; 
+        Xor = local_hard_location_address ^ bitstring[0]; 
 
         hamming += pop_count_uint32 (Xor.s0);
         hamming += pop_count_uint32 (Xor.s1);
@@ -101,11 +101,11 @@ prg = cl.Program(ctx, """
         if (activeHLs[0]<(MaxActiveHLs-1) && hamming<hamming_distances[0] )  //104 is the one: 128-24: mu-3sigma. Com o seed = 1234567890, gera 1153 Active Hard Locations
         {
         //      GetSemaphor(&semaphor[0]);
-              {
+              //{
                   activeHLs[0]=activeHLs[0]+1;
                   activeHLs[activeHLs[0]]=gid;
                   hamming_distances[activeHLs[0]]=hamming;
-              }
+              //}
         //  ReleaseSemaphor(&semaphor[0]);
         }
     }""").build()
@@ -116,9 +116,6 @@ print INT_SIZE,'bits,   ', DIMENSIONS, ' dimensions,   2^20 Hard Locations'
 
 start = time.time()
 for x in range(10):
-  #if INT_SIZE == 32:
-  #  prg.get_active_hard_locations_256bits_in_uint8(queue, memory_addresses.shape, None, memory_addresses_buffer, bitstring_buf, active_hard_locations_buffer, hamming_distances_buffer, semaphor_buffer).wait()
-  #elif INT_SIZE == 256:
     prg.get_active_hard_locations_256bits_in_uint8(queue, (HARD_LOCATIONS,), None, memory_addresses_buffer, bitstring_buf, active_hard_locations_buffer, hamming_distances_buffer, semaphor_buffer).wait()  
 print 'Time to compute some Hamming distances 10 times:', (time.time()-start)
 
@@ -128,7 +125,3 @@ err = cl.enqueue_read_buffer(queue, hamming_distances_buffer, hamming_distances)
 
 print active_hard_locations
 print hamming_distances
-
-
-
-
